@@ -3,6 +3,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, closed]
     branches:
+      - develop
       - main
     paths-ignore:
       - docs/**
@@ -11,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   deploy-preview:
+    if: ${{ github.head_ref != 'develop' }}
     runs-on: ubuntu-latest
     steps:
       - run: echo "PREVIEW pr=${{ github.event.number }} action=${{ github.event.action }} base=${{ github.base_ref }} head=${{ github.head_ref }}"
