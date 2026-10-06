@@ -16,6 +16,7 @@ jobs:
   deploy-preproduction:
     if: ${{ !inputs.skip-preprod-and-smoke-tests }}
     runs-on: ubuntu-latest
+    environment: preproduction
     steps:
       - run: echo "PREPROD deploy ref=$GITHUB_REF"
   test-e2e-smoke:
@@ -28,5 +29,6 @@ jobs:
     needs: [deploy-preproduction, test-e2e-smoke]
     if: ${{ always() && (needs.deploy-preproduction.result == 'success' || needs.deploy-preproduction.result == 'skipped') && (needs.test-e2e-smoke.result == 'success' || needs.test-e2e-smoke.result == 'skipped') }}
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - run: echo "PRODUCTION deploy ref=$GITHUB_REF sha=$GITHUB_SHA"
