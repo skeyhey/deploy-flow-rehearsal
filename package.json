@@ -10,6 +10,6 @@
     "ms": "2.0.0"
   },
   "devDependencies": {
-    "prettier": "2.0.0"
+    "prettier": "3.9.9"
   }
 }
