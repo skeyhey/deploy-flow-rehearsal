@@ -1,0 +1,22 @@
+name: Deploy To Preview
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    branches:
+      - main
+    paths-ignore:
+      - docs/**
+concurrency:
+  group: pr-${{ github.event.number }}
+  cancel-in-progress: true
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "PREVIEW pr=${{ github.event.number }} action=${{ github.event.action }} base=${{ github.base_ref }} head=${{ github.head_ref }}"
+  test-e2e-functional:
+    if: ${{ github.event.action != 'closed' && github.actor != 'dependabot[bot]' }}
+    needs: deploy-preview
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "E2E diff base=origin/${GITHUB_BASE_REF:-main}"

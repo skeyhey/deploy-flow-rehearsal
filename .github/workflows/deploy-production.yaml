@@ -1,0 +1,32 @@
+name: Deploy To Production
+on:
+  workflow_dispatch:
+    inputs:
+      skip-preprod-and-smoke-tests:
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - docs/**
+concurrency:
+  group: deploy-production
+jobs:
+  deploy-preproduction:
+    if: ${{ !inputs.skip-preprod-and-smoke-tests }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "PREPROD deploy ref=$GITHUB_REF"
+  test-e2e-smoke:
+    needs: deploy-preproduction
+    if: ${{ !inputs.skip-preprod-and-smoke-tests }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "SMOKE ok"
+  deploy-production:
+    needs: [deploy-preproduction, test-e2e-smoke]
+    if: ${{ always() && (needs.deploy-preproduction.result == 'success' || needs.deploy-preproduction.result == 'skipped') && (needs.test-e2e-smoke.result == 'success' || needs.test-e2e-smoke.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "PRODUCTION deploy ref=$GITHUB_REF sha=$GITHUB_SHA"

@@ -1,0 +1,15 @@
+name: Deploy To Staging
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - docs/**
+concurrency:
+  group: deploy-staging
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "STAGING deploy ref=$GITHUB_REF sha=$GITHUB_SHA"
