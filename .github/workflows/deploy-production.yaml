@@ -18,17 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: preproduction
     steps:
-      - run: echo "PREPROD deploy ref=$GITHUB_REF"
+      - run: |
+          echo "PREPROD deploy (release) ref=$GITHUB_REF sha=$GITHUB_SHA start=$(date -u +%T)"
+          sleep 120
+          echo "PREPROD deploy (release) end=$(date -u +%T)"
   test-e2e-smoke:
     needs: deploy-preproduction
     if: ${{ !inputs.skip-preprod-and-smoke-tests }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "SMOKE ok"
+      - run: echo "SMOKE start=$(date -u +%T)"; sleep 30; echo "SMOKE end=$(date -u +%T)"
   deploy-production:
     needs: [deploy-preproduction, test-e2e-smoke]
     if: ${{ always() && (needs.deploy-preproduction.result == 'success' || needs.deploy-preproduction.result == 'skipped') && (needs.test-e2e-smoke.result == 'success' || needs.test-e2e-smoke.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - run: echo "PRODUCTION deploy ref=$GITHUB_REF sha=$GITHUB_SHA"
+      - run: echo "PRODUCTION deploy ref=$GITHUB_REF sha=$GITHUB_SHA at=$(date -u +%T)"
