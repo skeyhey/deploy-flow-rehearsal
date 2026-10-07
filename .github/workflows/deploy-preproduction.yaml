@@ -1,0 +1,71 @@
+name: Deploy To Preproduction
+
+# Preproduction tracks `develop`, next to staging, so problems specific to it (its own
+# env file and secrets, its production-sized fleet) surface when a PR merges instead of
+# when a release is already underway.
+#
+# It is also the gate of the production pipeline: deploy-production.yaml redeploys
+# preproduction from `main` and runs e2e against it. Two things keep the two apart:
+#
+# - Own concurrency group. Never reuse `deploy-production`: a group holds one running and
+#   one pending run, and a newer pending run replaces the older one, so a develop deploy
+#   could silently cancel a production deploy that is still queued.
+# - The first step waits for any production pipeline to finish. A deploy landing between
+#   the release's preproduction deploy and its e2e jobs would swap the build under test.
+#
+# Not covered: a release started while this workflow is mid-deploy runs two `flyctl deploy`
+# against the same app. Do not merge a release PR while this workflow is running.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - tests/**
+      - docs/**
+      - .claude/**
+      - '**/*.spec.ts'
+
+concurrency:
+  group: deploy-preproduction
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  deploy-preproduction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    environment:
+      name: preproduction
+      url: https://ecom-fe-sveltekit-preproduction.fly.dev
+
+    steps:
+      - name: Wait for a running production pipeline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Fail rather than deploy anyway: racing the release's e2e is the thing to avoid.
+          for attempt in $(seq 1 120); do
+            active=$(gh run list --workflow deploy-production.yaml --limit 20 \
+              --json status --jq '[.[] | select(.status != "completed")] | length')
+
+            if [[ "$active" == "0" ]]; then
+              echo "No production pipeline running, deploying."
+              exit 0
+            fi
+
+            echo "$active production run(s) in progress, waiting (attempt $attempt/120)..."
+            sleep 30
+          done
+
+          echo "Production pipeline still running after 60 minutes, giving up." >&2
+          exit 1
+      - run: |
+          echo "PREPROD deploy (develop) ref=$GITHUB_REF sha=$GITHUB_SHA start=$(date -u +%T)"
+          sleep 120
+          echo "PREPROD deploy (develop) end=$(date -u +%T)"
