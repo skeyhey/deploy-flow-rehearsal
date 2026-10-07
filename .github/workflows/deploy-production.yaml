@@ -27,18 +27,33 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           # The release owns preproduction from here on. Cancel rather than wait: the develop
-          # workflow waits for this run, so a mutual wait deadlocks for 60 minutes.
-          gh run list --workflow deploy-preproduction.yaml --limit 20 \
-            --json databaseId,status --jq '.[] | select(.status != "completed") | .databaseId' \
-            | xargs -r -n1 gh run cancel
+          # workflow waits for this run, so a mutual wait would deadlock for 60 minutes.
+          # Cancel failures are tolerated; the loop below is the real gate.
+          active_ids() {
+            gh run list --workflow deploy-preproduction.yaml --limit 20 \
+              --json databaseId,status --jq '.[] | select(.status != "completed") | .databaseId'
+          }
+
+          for id in $(active_ids); do
+            gh run cancel "$id" && echo "Cancelled develop deploy run $id" \
+              || echo "Could not cancel run $id yet, will retry and escalate."
+          done
 
           for attempt in $(seq 1 20); do
-            active=$(gh run list --workflow deploy-preproduction.yaml --limit 20 \
-              --json status --jq '[.[] | select(.status != "completed")] | length' || echo unknown)
+            active=$(active_ids | wc -l | tr -d ' ') || active=unknown
 
             if [[ "$active" == "0" ]]; then
               echo "No develop deploy active, deploying."
               exit 0
+            fi
+
+            if (( attempt % 4 == 0 )); then
+              # A minute without effect: a plain cancel can be refused for a run stuck
+              # between states, force-cancel is not.
+              for id in $(active_ids); do
+                gh api -X POST "repos/$GH_REPO/actions/runs/$id/force-cancel" \
+                  && echo "Force-cancelled run $id" || echo "Force-cancel of run $id refused."
+              done
             fi
 
             echo "$active develop deploy run(s) still active, waiting (attempt $attempt/20)..."
