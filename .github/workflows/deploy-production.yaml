@@ -12,12 +12,41 @@ on:
       - docs/**
 concurrency:
   group: deploy-production
+permissions:
+  actions: write
+  contents: read
 jobs:
   deploy-preproduction:
     if: ${{ !inputs.skip-preprod-and-smoke-tests }}
     runs-on: ubuntu-latest
     environment: preproduction
     steps:
+      - name: Stop any develop deploy of preproduction
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # The release owns preproduction from here on. Cancel rather than wait: the develop
+          # workflow waits for this run, so a mutual wait deadlocks for 60 minutes.
+          gh run list --workflow deploy-preproduction.yaml --limit 20 \
+            --json databaseId,status --jq '.[] | select(.status != "completed") | .databaseId' \
+            | xargs -r -n1 gh run cancel
+
+          for attempt in $(seq 1 20); do
+            active=$(gh run list --workflow deploy-preproduction.yaml --limit 20 \
+              --json status --jq '[.[] | select(.status != "completed")] | length' || echo unknown)
+
+            if [[ "$active" == "0" ]]; then
+              echo "No develop deploy active, deploying."
+              exit 0
+            fi
+
+            echo "$active develop deploy run(s) still active, waiting (attempt $attempt/20)..."
+            sleep 15
+          done
+
+          echo "A develop deploy is still active after 5 minutes, giving up." >&2
+          exit 1
       - run: |
           echo "PREPROD deploy (release) ref=$GITHUB_REF sha=$GITHUB_SHA start=$(date -u +%T)"
           sleep 120
