@@ -6,7 +6,7 @@
   "dependencies": {
     "dayjs": "1.10.0",
     "lodash": "4.17.15",
-    "minimist": "1.2.0",
+    "minimist": "1.2.6",
     "ms": "2.0.0"
   },
   "devDependencies": {
